@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Union — Parental Leave Policy Builder</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #F5F6FA; -webkit-font-smoothing: antialiased; }
+    button { font-family: 'DM Sans', sans-serif; }
+    textarea, input { font-family: 'DM Sans', sans-serif; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; width: 100%; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #3959FF; border: 3px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; margin-top: -7px; }
+    input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #3959FF; border: 3px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.4); cursor: pointer; }
+    input[type=range]::-webkit-slider-runnable-track { height: 6px; background: transparent; border-radius: 3px; }
+    input[type=range]::-moz-range-track { height: 6px; background: #D4D6DF; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+const { useState } = React;
+
+// ── PALETTE ───────────────────────────────────────────────────────────────────
+const C = {
+  // Union brand
+  union: "#3B5BDB",
+  unionDark: "#2F4AC0",
+  unionDeep: "#1E3A8A",
+  unionLight: "#EEF2FF",
+  unionMid: "#6B8AF0",
+  // Surfaces
+  bg: "#F5F6FA",
+  surface: "#FFFFFF",
+  surfaceAlt: "#F8F9FC",
+  border: "#E2E5EE",
+  borderDark: "#C8CDD9",
+  // Text
+  text: "#0F1623",
+  textSub: "#374151",
+  muted: "#6B7280",
+  mutedLight: "#9CA3AF",
+  // Semantic
+  warn: "#92400E",
+  warnBg: "#FFFBEB",
+  warnBorder: "#D97706",
+  error: "#7F1D1D",
+  errorBg: "#FEF2F2",
+  errorBorder: "#DC2626",
+  success: "#14532D",
+  successBg: "#F0FDF4",
+  successBorder: "#16A34A",
+  info: "#1E3A8A",
+  infoBg: "#EFF6FF",
+  infoBorder: "#3B82F6",
+  // Dial section — Union brand palette (light, accessible)
+  dark: "#F0F1F5",
+  darkSurface: "#FFFFFF",
+  darkBorder: "#D4D6DF",
+  darkText: "#211E1B",
+  darkMuted: "#A0A4B8",
+  teal: "#3959FF",
+  tealDim: "#7089FC",
+  orange: "#FFAA06",
+  red: "#D93B3B",
+  green: "#1A7A4A",
+};
+
+const STATES_WITH_LAWS = [
+  { code: "CA", label: "California", note: "PFL up to 8 wks" },
+  { code: "NY", label: "New York", note: "PFL up to 12 wks" },
+  { code: "WA", label: "Washington", note: "Paid Family & Medical Leave" },
+  { code: "MA", label: "Massachusetts", note: "Paid Family & Medical Leave" },
+  { code: "NJ", label: "New Jersey", note: "Family Leave Insurance" },
+  { code: "CT", label: "Connecticut", note: "Paid Leave Act" },
+  { code: "OR", label: "Oregon", note: "Paid Leave Oregon" },
+  { code: "CO", label: "Colorado", note: "FAMLI" },
+  { code: "RI", label: "Rhode Island", note: "Temporary Caregiver Insurance" },
+  { code: "DC", label: "Washington D.C.", note: "Universal Paid Leave" },
+  { code: "MD", label: "Maryland", note: "Time to Care Act (2026)" },
+  { code: "MN", label: "Minnesota", note: "Paid Leave (2026)" },
+  { code: "DE", label: "Delaware", note: "Paid Leave Law (2026)" },
+];
+
+// ── CONTEXT PARSING ───────────────────────────────────────────────────────────
+const parseStage = (text = "") => {
+  const t = text.toLowerCase();
+  const isSeed = t.includes("seed") || t.includes("pre-seed");
+  const isSeriesA = t.includes("series a") || t.includes("series-a");
+  const isSeriesB = t.includes("series b") || t.includes("series-b") || t.includes("series c") || t.includes("series-c");
+  const isSF = t.includes("sf") || t.includes("san francisco") || t.includes("bay area");
+  const isNY = t.includes("new york") || t.includes("nyc");
+  const isSeattle = t.includes("seattle");
+  const isTopTier = t.includes("stripe") || t.includes("airbnb") || t.includes("google") ||
+    t.includes("meta") || t.includes("fortune 500") || t.includes("big tech") ||
+    t.includes("faang") || t.includes("microsoft") || t.includes("amazon");
+  const isVC = t.includes("vc") || t.includes("venture") || t.includes("vc-backed") || isSeriesA || isSeriesB;
+  const isBio = t.includes("biotech") || t.includes("pharma") || t.includes("life science");
+  const isFintech = t.includes("fintech") || t.includes("finance") || t.includes("banking");
+  const isEnterprise = t.includes("enterprise") || t.includes("b2b saas") || t.includes("saas");
+  const headcountMatch = t.match(/(\d+)\s*(employees|people|ftes|headcount|team)/);
+  const headcount = headcountMatch ? parseInt(headcountMatch[1]) : null;
+  const companyMatch = t.match(/(?:company|called|named|at)\s+([a-z][a-z0-9\s]+?)(?:\.|,|$)/i);
+  const company = companyMatch ? companyMatch[1].trim() : null;
+
+  const highCost = isSF || isNY || isSeattle;
+  const industry = isBio ? "biotech" : isFintech ? "fintech" : isEnterprise ? "enterprise saas" : "tech";
+
+  if (isSeed) return { stage: "Seed", tier: highCost ? "high-cost" : "standard", isTopTier, headcount, company, industry };
+  if (isSeriesB) return { stage: "Series B+", tier: highCost ? "high-cost" : "standard", isTopTier, headcount, company, industry };
+  if (isSeriesA || isVC) return { stage: "Series A", tier: highCost ? "high-cost" : "standard", isTopTier, headcount, company, industry };
+  return { stage: null, tier: "standard", isTopTier, headcount, company, industry };
+};
+
+// ── MARKET BENCHMARKS ─────────────────────────────────────────────────────────
+const getBenchmarks = (profile) => {
+  const { stage, tier, isTopTier } = profile;
+  const hc = tier === "high-cost";
+
+  const table = {
+    "Seed": {
+      leaveDuration: hc ? { min: 8, mid: 10, label: "8–12 wks" } : { min: 4, mid: 8, label: "4–8 wks" },
+      payFT: hc ? { label: "80–100% top-up" } : { label: "60–80% or STD only" },
+      payPT: { label: "Pro-rated to hours" },
+      eligibilityWindow: { label: "6–12 months" },
+      flexibility: { label: "Block or 2 chunks" },
+      rampUp: { label: "0–1 week" },
+    },
+    "Series A": {
+      leaveDuration: hc ? { min: 12, mid: 14, label: "12–16 wks" } : { min: 8, mid: 12, label: "8–12 wks" },
+      payFT: { label: "80–100% top-up" },
+      payPT: { label: "Pro-rated to hours or FT equivalent" },
+      eligibilityWindow: { label: "90 days–6 months" },
+      flexibility: { label: "Chunks within 12 months" },
+      rampUp: { label: "1–2 weeks" },
+    },
+    "Series B+": {
+      leaveDuration: hc ? { min: 16, mid: 18, label: "16–20 wks" } : { min: 12, mid: 16, label: "12–16 wks" },
+      payFT: { label: "100% top-up" },
+      payPT: { label: "FT equivalent or pro-rated" },
+      eligibilityWindow: { label: "Day 1–90 days" },
+      flexibility: { label: "Flexible chunks" },
+      rampUp: { label: "2–4 weeks" },
+    },
+  };
+
+  const base = table[stage] || table["Series A"];
+  if (isTopTier) {
+    return {
+      ...base,
+      leaveDuration: { min: 20, mid: 22, label: "20–24 wks (best-in-class)" },
+      payFT: { label: "100% top-up or direct pay" },
+    };
+  }
+  return base;
+};
+
+// ── SHARED COMPONENTS ─────────────────────────────────────────────────────────
+const Label = ({ children, sub }) => (
+  <div style={{ marginBottom: 8 }}>
+    <div style={{ fontWeight: 600, fontSize: 14, color: C.text, lineHeight: 1.4 }}>{children}</div>
+    {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>{sub}</div>}
+  </div>
+);
+
+const Warn = ({ children }) => (
+  <div style={{ background: C.warnBg, border: `1px solid ${C.warnBorder}`, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: C.warn, marginTop: 10, lineHeight: 1.6 }}>
+    ⚠️ {children}
+  </div>
+);
+
+const InfoBox = ({ children }) => (
+  <div style={{ background: C.infoBg, border: `1px solid ${C.infoBorder}`, borderRadius: 8, padding: "10px 14px", fontSize: 13, color: C.info, marginTop: 10, lineHeight: 1.6 }}>
+    💡 {children}
+  </div>
+);
+
+const Radio = ({ options, value, onChange, cols = 1 }) => (
+  <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8, marginTop: 8 }}>
+    {options.map(opt => {
+      const val = typeof opt === "object" ? opt.value : opt;
+      const label = typeof opt === "object" ? opt.label : opt;
+      const sub = typeof opt === "object" ? opt.sub : null;
+      const sel = value === val;
+      return (
+        <button key={val} onClick={() => onChange(val)} style={{
+          border: `2px solid ${sel ? C.union : C.border}`, borderRadius: 8,
+          padding: "10px 14px", textAlign: "left", cursor: "pointer",
+          background: sel ? C.unionLight : C.surface, transition: "all .15s", fontFamily: "inherit",
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+            <div style={{
+              width: 16, height: 16, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+              border: `2px solid ${sel ? C.union : C.borderDark}`,
+              background: sel ? C.union : "transparent",
+            }} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{label}</div>
+              {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sub}</div>}
+            </div>
+          </div>
+        </button>
+      );
+    })}
+  </div>
+);
+
+const CheckGroup = ({ options, values = [], onChange, withSelectAll = false }) => {
+  const allVals = options.map(o => typeof o === "object" ? o.value : o);
+  const allSelected = allVals.every(v => values.includes(v));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+      {withSelectAll && (
+        <button onClick={() => onChange(allSelected ? [] : allVals)} style={{
+          border: `2px solid ${allSelected ? C.union : C.border}`, borderRadius: 8,
+          padding: "8px 14px", textAlign: "left", cursor: "pointer",
+          background: allSelected ? C.unionLight : C.surfaceAlt, fontFamily: "inherit",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{
+              width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+              border: `2px solid ${allSelected ? C.union : C.borderDark}`,
+              background: allSelected ? C.union : "transparent",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              {allSelected && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.union }}>Select all</span>
+          </div>
+        </button>
+      )}
+      {options.map(opt => {
+        const val = typeof opt === "object" ? opt.value : opt;
+        const label = typeof opt === "object" ? opt.label : opt;
+        const sub = typeof opt === "object" ? opt.sub : null;
+        const sel = values.includes(val);
+        return (
+          <button key={val} onClick={() => onChange(sel ? values.filter(v => v !== val) : [...values, val])} style={{
+            border: `2px solid ${sel ? C.union : C.border}`, borderRadius: 8,
+            padding: "10px 14px", textAlign: "left", cursor: "pointer",
+            background: sel ? C.unionLight : C.surface, transition: "all .15s", fontFamily: "inherit",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+              <div style={{
+                width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1,
+                border: `2px solid ${sel ? C.union : C.borderDark}`,
+                background: sel ? C.union : "transparent",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {sel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{label}</div>
+                {sub && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{sub}</div>}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const SectionCard = ({ title, step, children }) => (
+  <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24, marginBottom: 20, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div style={{
+        width: 30, height: 30, borderRadius: "50%", background: C.union,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 13, fontWeight: 700, color: "#fff", flexShrink: 0,
+      }}>{step}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{title}</div>
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>{children}</div>
+  </div>
+);
+
+// ── WEEK SLIDER ───────────────────────────────────────────────────────────────
+const WeekSlider = ({ value, onChange, label, sub, marketMin, marketMid, marketLabel, max = 24 }) => {
+  const pct = (value / max) * 100;
+  const mPct = marketMid ? (marketMid / max) * 100 : null;
+
+  const getColor = () => {
+    if (!marketMin) return C.union;
+    if (value < marketMin - 2) return C.red;
+    if (value >= marketMin + 4) return C.green;
+    return C.union;
+  };
+
+  const getTag = () => {
+    if (!marketMin) return null;
+    if (value === 0) return null;
+    if (value < marketMin - 2) return { label: "BELOW MARKET", color: C.red, bg: "#FEF2F2" };
+    if (value >= marketMin + 6) return { label: "BEST-IN-CLASS", color: "#0369A1", bg: "#EFF6FF" };
+    if (value >= marketMin + 2) return { label: "ABOVE MARKET", color: "#15803D", bg: "#F0FDF4" };
+    return { label: "AT MARKET", color: C.union, bg: C.unionLight };
+  };
+
+  const tag = getTag();
+  const trackColor = getColor();
+
+  return (
+    <div style={{ background: C.darkSurface, border: `1px solid ${C.darkBorder}`, borderRadius: 12, padding: "20px 22px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.darkText }}>{label}</div>
+          {sub && <div style={{ fontSize: 11, color: C.darkMuted, marginTop: 3 }}>{sub}</div>}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: value > 0 ? C.teal : C.darkMuted, fontVariantNumeric: "tabular-nums" }}>
+            {value > 0 ? `${value} wks` : "—"}
+          </div>
+          {tag && value > 0 && (
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: tag.color, marginTop: 2 }}>
+              {tag.label}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* slider track */}
+      <div style={{ position: "relative", marginBottom: 8 }}>
+
+        <div style={{ position: "relative", height: 20, display: "flex", alignItems: "center" }}>
+          {/* track bg */}
+          <div style={{ position: "absolute", left: 0, right: 0, height: 6, background: C.darkBorder, borderRadius: 3 }} />
+          {/* track fill */}
+          <div style={{
+            position: "absolute", left: 0, width: `${pct}%`, height: 6,
+            background: `linear-gradient(90deg, ${C.union}, ${trackColor})`,
+            borderRadius: 3, transition: "width .1s",
+          }} />
+          <input
+            type="range" min={0} max={max} value={value}
+            onChange={e => onChange(parseInt(e.target.value))}
+            style={{
+              position: "absolute", left: 0, right: 0, width: "100%",
+              opacity: 0, cursor: "pointer", height: 20, margin: 0,
+            }}
+          />
+          {/* thumb */}
+          <div style={{
+            position: "absolute", left: `${pct}%`, transform: "translateX(-50%)",
+            width: 20, height: 20, borderRadius: "50%",
+            background: value > 0 ? C.teal : C.darkBorder,
+            border: `3px solid ${C.darkSurface}`,
+            boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+            pointerEvents: "none", transition: "left .1s",
+          }} />
+        </div>
+      </div>
+
+      {/* scale labels */}
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.darkMuted, marginTop: 4 }}>
+        <span>0</span>
+        <span>6 wks</span>
+        <span>12 wks</span>
+        <span>18 wks</span>
+        <span>24 wks</span>
+      </div>
+
+      {/* market context note */}
+      {marketLabel && (
+        <div style={{ marginTop: 12, fontSize: 11, color: C.darkMuted, borderTop: `1px solid ${C.darkBorder}`, paddingTop: 10 }}>
+          <span style={{ color: C.tealDim }}>Market for your stage: </span>{marketLabel}
+          {mPct !== null && <span style={{ color: C.darkMuted }}> — vertical marker above</span>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── DIAL COMPONENT (for non-duration dials) ───────────────────────────────────
+const MARKET_TAG = {
+  "BELOW":  { label: "BELOW MARKET", color: C.red },
+  "MARKET": { label: "AT MARKET",    color: C.teal },
+  "ABOVE":  { label: "ABOVE MARKET", color: C.green },
+  "BEST":   { label: "BEST-IN-CLASS",color: "#7DD3FC" },
+};
+
+const Dial = ({ title, sub, steps, value, onChange, marketPos, valueLabel, note, contextNote }) => {
+  const idx = steps.findIndex(s => s.value === value);
+  const activeIdx = idx === -1 ? -1 : idx;
+
+  const getTag = () => {
+    if (activeIdx < 0) return null;
+    const diff = activeIdx - marketPos;
+    if (diff < -0.5) return "BELOW";
+    if (diff > 1.5) return "BEST";
+    if (diff > 0.5) return "ABOVE";
+    return "MARKET";
+  };
+
+  const tag = getTag();
+  const tagInfo = tag ? MARKET_TAG[tag] : null;
+
+  return (
+    <div style={{ background: C.darkSurface, border: `1px solid ${C.darkBorder}`, borderRadius: 12, padding: "18px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.darkText }}>{title}</div>
+          {sub && <div style={{ fontSize: 11, color: C.darkMuted, marginTop: 3 }}>{sub}</div>}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: activeIdx >= 0 ? C.teal : C.darkMuted }}>
+            {activeIdx >= 0 ? valueLabel : "—"}
+          </div>
+          {tagInfo && (
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", color: tagInfo.color, marginTop: 2 }}>
+              {tagInfo.label}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* track */}
+      <div style={{ position: "relative", paddingBottom: 28, marginBottom: 4 }}>
+        <div style={{ position: "absolute", top: 6, left: 0, right: 0, height: 4, background: C.darkBorder, borderRadius: 2 }} />
+        {activeIdx >= 0 && (
+          <div style={{
+            position: "absolute", top: 6, left: 0,
+            width: `${(activeIdx / (steps.length - 1)) * 100}%`,
+            height: 4, background: `linear-gradient(90deg, ${C.union}, ${C.teal})`,
+            borderRadius: 2, transition: "width .2s",
+          }} />
+        )}
+
+        {steps.map((s, i) => {
+          const isActive = i === activeIdx;
+          const isFilled = i < activeIdx;
+          return (
+            <button key={String(s.value)} onClick={() => onChange(s.value)} style={{
+              position: "absolute", top: 0,
+              left: `${(i / (steps.length - 1)) * 100}%`,
+              transform: "translateX(-50%)",
+              width: 16, height: 16, borderRadius: "50%", cursor: "pointer", padding: 0,
+              border: `2px solid ${isActive ? C.teal : isFilled ? C.union : C.darkBorder}`,
+              background: isActive ? C.teal : isFilled ? C.union : C.darkSurface,
+              zIndex: 2, transition: "all .15s",
+            }} />
+          );
+        })}
+        {steps.map((s, i) => (
+          <button key={`lbl-${String(s.value)}`} onClick={() => onChange(s.value)} style={{
+            position: "absolute", top: 22,
+            left: `${(i / (steps.length - 1)) * 100}%`,
+            transform: "translateX(-50%)",
+            fontSize: 10, color: i === activeIdx ? C.teal : C.darkMuted,
+            fontWeight: i === activeIdx ? 700 : 400,
+            background: "none", border: "none", cursor: "pointer",
+            whiteSpace: "nowrap", fontFamily: "inherit",
+            maxWidth: 64, textAlign: "center", lineHeight: 1.2,
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {(note || contextNote) && (
+        <div style={{ marginTop: 8, fontSize: 11, color: C.darkMuted, lineHeight: 1.6, borderTop: `1px solid ${C.darkBorder}`, paddingTop: 8 }}>
+          {contextNote ? <span style={{ color: C.tealDim }}>{contextNote}</span> : note}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── DIAL STEPS ────────────────────────────────────────────────────────────────
+const DIAL_STEPS = {
+  payFT: [
+    { value: "std_only",   label: "STD only" },
+    { value: "60",         label: "60%" },
+    { value: "80",         label: "80%" },
+    { value: "100_topup",  label: "100% top-up" },
+    { value: "100_direct", label: "100% direct" },
+  ],
+  payPT: [
+    { value: "none",       label: "Unpaid" },
+    { value: "prorated",   label: "Pro-rated" },
+    { value: "ft_equiv",   label: "FT equiv" },
+  ],
+  recoveryExtended: [
+    { value: "min",  label: "Min (6–8w)" },
+    { value: "10",   label: "10 wks" },
+    { value: "12",   label: "12 wks" },
+    { value: "16",   label: "16 wks" },
+  ],
+  eligibilityWindow: [
+    { value: "1yr",  label: "1 year" },
+    { value: "6mo",  label: "6 months" },
+    { value: "90d",  label: "90 days" },
+    { value: "30d",  label: "30 days" },
+    { value: "day1", label: "Day 1" },
+  ],
+  flexibility: [
+    { value: "block",    label: "Block only" },
+    { value: "2chunks",  label: "2 chunks" },
+    { value: "chunks12", label: "Chunks/12mo" },
+    { value: "flexible", label: "Flexible" },
+    { value: "fullflex", label: "Full flex" },
+  ],
+  rampUp: [
+    { value: 0, label: "None" },
+    { value: 1, label: "1 week" },
+    { value: 2, label: "2 weeks" },
+    { value: 4, label: "4 weeks" },
+    { value: 6, label: "6 wks flex" },
+  ],
+  leaveWindow: [
+    { value: "6mo",  label: "6 months" },
+    { value: "12mo", label: "12 months" },
+    { value: "24mo", label: "24 months" },
+  ],
+  bonusesFT: [
+    { value: "none",     label: "Not eligible" },
+    { value: "prorated", label: "Prorated" },
+    { value: "full",     label: "Full bonus" },
+  ],
+  bonusesPT: [
+    { value: "none",     label: "Not eligible" },
+    { value: "prorated", label: "Prorated" },
+  ],
+  commissions: [
+    { value: "none",     label: "None" },
+    { value: "prorated", label: "Prorated" },
+    { value: "full",     label: "Full draw" },
+  ],
+  rampUpPay: [
+    { value: "50",  label: "50% pay" },
+    { value: "75",  label: "75% pay" },
+    { value: "100", label: "Full pay" },
+  ],
+};
+
+const BASE_MARKET_POS = {
+  payFT: 2, payPT: 1, recoveryExtended: 0,
+  eligibilityWindow: 2, flexibility: 2, rampUp: 2, leaveWindow: 1,
+  bonusesFT: 1, bonusesPT: 1, commissions: 1, rampUpPay: 2,
+};
+
+function getMarketPos(dial, profile) {
+  const stageMap = {
+    "Seed":     { payFT: 1, eligibilityWindow: 1, flexibility: 1, rampUp: 1 },
+    "Series A": { payFT: 2, eligibilityWindow: 2, flexibility: 2, rampUp: 2 },
+    "Series B+":{ payFT: 3, eligibilityWindow: 3, flexibility: 3, rampUp: 3 },
+  };
+  const override = profile.stage ? (stageMap[profile.stage] || {})[dial] : undefined;
+  if (override !== undefined) return Math.min(override, DIAL_STEPS[dial].length - 1);
+  return BASE_MARKET_POS[dial] ?? 1;
+}
+
+function dialValueLabel(dial, value) {
+  const step = (DIAL_STEPS[dial] || []).find(s => s.value === value);
+  return step ? step.label : "—";
+}
+
+// ── DIAL SECTION ──────────────────────────────────────────────────────────────
+const DialSection = ({ title, dials, data, setData, profile, warning }) => {
+  const set = key => val => setData(prev => ({ ...prev, [key]: val }));
+  const bench = getBenchmarks(profile);
+
+  return (
+    <div style={{ background: "#211E1B", borderRadius: 12, padding: 24, marginBottom: 20, border: "1px solid #3D3A36" }}>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: C.teal, marginBottom: 4 }}>{title}</div>
+        {profile.stage && (
+          <div style={{ fontSize: 11, color: C.darkMuted }}>
+            Benchmarks for{" "}
+            <span style={{ color: C.tealDim, fontWeight: 600 }}>{profile.stage}</span>
+            {profile.tier === "high-cost" ? " · high-cost market" : ""}
+            {profile.isTopTier ? " · competing vs. top-tier tech" : ""}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {dials.map(({ key, label, sub, condition, isSlider, sliderProps }) => {
+          if (condition !== undefined && !condition) return null;
+          if (isSlider) {
+            const benchData = bench.leaveDuration || {};
+            return (
+              <div key={key} style={{ gridColumn: "1 / -1" }}>
+                <WeekSlider
+                  value={data[key] || 0}
+                  onChange={set(key)}
+                  label={label}
+                  sub={sub}
+                  marketMin={benchData.min}
+                  marketMid={benchData.mid}
+                  marketLabel={benchData.label}
+                  max={24}
+                />
+              </div>
+            );
+          }
+          const steps = DIAL_STEPS[key];
+          if (!steps) return null;
+          const marketPos = getMarketPos(key, profile);
+          const value = data[key];
+          const vLabel = dialValueLabel(key, value);
+          const contextNote = !value && profile.stage && bench[key] ? `Market ${profile.stage}: ${bench[key].label}` : null;
+          const note = value != null ? getDialNote(key, value, profile) : null;
+
+          return (
+            <Dial key={key} title={label} sub={sub} steps={steps} value={value}
+              onChange={set(key)} marketPos={marketPos} valueLabel={vLabel}
+              note={note} contextNote={contextNote}
+            />
+          );
+        })}
+      </div>
+
+      {warning && (
+        <div style={{ marginTop: 12, background: "#FFF8E6", border: "1px solid #FFAA06", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#92400E", lineHeight: 1.6 }}>
+          ⚠️ {warning}
+        </div>
+      )}
+    </div>
+  );
+};
+
+function getDialNote(dial, value, profile) {
+  const stage = profile.stage || "a typical startup";
+  const hc = profile.tier === "high-cost";
+
+  const notes = {
+    payFT: {
+      std_only:   `In non-PFL states (TX, FL, GA, etc.), employees may receive little to no income during leave. This is the single highest attrition risk in any leave policy — employees who can't afford leave don't come back.`,
+      "60":       `A 60% floor reduces financial shock, but a $90K employee still loses $900/month. Financial stress at this level correlates strongly with non-returns, especially for primary caregivers.`,
+      "80":       `80% is the pragmatic middle — reduces stress meaningfully without full top-up cost. Common at ${stage}. Works well when paired with STD for birthing parents.`,
+      "100_topup":`Full top-up via STD offset. You pay the gap; state PFL/STD covers the base. This is the standard at well-funded ${stage} companies and the single strongest retention lever in leave policy.`,
+      "100_direct":`Company pays 100% directly without relying on STD offsets. Simpler to communicate; higher cash cost but zero gap risk for employees in non-PFL states.`,
+    },
+    payPT: {
+      none:     `Unpaid leave for part-time employees creates a two-tier workforce. In a small team, this is visible and will generate resentment — especially as PT roles often skew toward caregivers.`,
+      prorated: `Pro-rated pay is the equitable standard — PT employees receive leave pay proportional to their hours. Clean, fair, easy to administer.`,
+      ft_equiv: `Paying PT employees at FT equivalent rates is rare and generous. Strong signal of equity; meaningful cost depending on how many PT employees you have.`,
+    },
+    eligibilityWindow: {
+      "1yr":  `FMLA minimum, but increasingly seen as a signal of distrust. A new hire who becomes pregnant in month 3 falls through entirely. At ${stage}, candidates notice this.`,
+      "6mo":  `A reasonable compromise for budget-constrained companies. Still excludes some new hires, but limits exposure on very early departures.`,
+      "90d":  `The de facto standard at Series A+ companies. Low actual risk — almost no one joins a job intending to take immediate leave. Strong inclusivity signal.`,
+      "30d":  `Above market. Signals genuine trust. The marginal misuse risk is close to zero; the positive culture signal is significant.`,
+      "day1": `Best-in-class. Common at larger orgs and increasingly expected at Series B+${hc ? " in SF/NYC" : ""}. Removes all eligibility anxiety for new hires.`,
+    },
+    flexibility: {
+      block:    `Block-only leave is easiest to administer but increasingly out of step with what parents actually need. A parent who wants to take 4 weeks at birth and 4 weeks when a partner returns to work can't do that here.`,
+      "2chunks":`A practical compromise that covers the most common use case: leave at birth plus a second block when the non-birthing partner's leave ends. Works well at Seed/Series A.`,
+      chunks12: `Market standard at ${stage}. Allows leave to be split into chunks within 12 months of birth/placement. Covers most real-world scenarios without excessive admin burden.`,
+      flexible: `Above market. High value to employees — particularly for families navigating NICU stays, postpartum complications, or staggered childcare. Admin complexity is manageable with a clear process.`,
+      fullflex: `Maximum flexibility. Strongest culture signal. Requires a solid leave-tracking process and a People team (or manager) who can own it. Don't offer this if you're winging leave admin.`,
+    },
+    rampUp: {
+      0: `No ramp-up means employees go from zero to full workload overnight. This is the most common point of failure for return-to-work. Even a single week of part-time makes a material difference.`,
+      1: `One week at reduced schedule is minimal but meaningful. Signals awareness that the transition is hard. Low cost, real impact.`,
+      2: `Two weeks is the market standard at ${stage}. Typically 50–75% capacity at full pay. Covers the childcare adjustment period for most families.`,
+      4: `Four weeks of ramp-up meaningfully improves return rates, particularly for primary caregivers. Above market — and worth it if retention is a priority.`,
+      6: `Six-week flexible ramp is best-in-class. Lets employees self-pace the return. Strong retention signal; pairs well with a generous bonding leave length.`,
+    },
+    leaveWindow: {
+      "6mo":  `Six months is tight. Families navigating NICU stays, postpartum complications, or childcare delays may not be able to use their full leave. Creates anxiety around timing.`,
+      "12mo": `Standard. Gives families enough runway to plan. Covers the vast majority of real-world scenarios without opening up indefinite deferral.`,
+      "24mo": `Above market. Particularly useful for families with complex situations (adoption timelines, NICU, multiple children). Low cost; high goodwill.`,
+    },
+    bonusesFT: {
+      none:     `Employees who take leave during a bonus cycle miss out entirely. This creates a real financial incentive to cut leave short — which defeats the purpose of offering generous leave in the first place.`,
+      prorated: `Market standard. Employees earn bonus proportional to time worked. Fair, easy to defend, and removes the financial pressure to return early for bonus timing.`,
+      full:     `Full bonus during leave is generous and rare. Removes all financial incentive to cut leave short. Cost is typically modest unless you have high earners on long leaves.`,
+    },
+    bonusesPT: {
+      none:     `No bonus eligibility for PT employees during leave reinforces a two-tier dynamic. Worth aligning with FT treatment where feasible.`,
+      prorated: `Prorated bonus for PT employees is equitable and consistent. Keeps policy simple and fair across employment types.`,
+    },
+    commissions: {
+      none:     `Quota-carrying employees who lose commission income during leave face a compounding financial hit. This is the highest-risk element for sales team retention during parental leave.`,
+      prorated: `Trailing commissions or quota relief is the standard approach. Typically structured as average of last 3–6 months commission, paid during leave. Ask your payroll provider how they handle this.`,
+      full:     `Full draw during leave is a strong signal, particularly for senior sellers. Significant cost for high earners on long leaves — model this before committing.`,
+    },
+    rampUpPay: {
+      "50":  `Half pay during ramp-up is a common compromise — reduces cost while still giving returning parents a supported transition. Ensure payroll can handle the split-rate week cleanly.`,
+      "75":  `75% pay during ramp-up is the market sweet spot. Most employees can manage on three-quarter pay for a few weeks; it meaningfully reduces any incentive to skip the ramp and go straight back full-time.`,
+      "100": `Full pay during ramp-up is the strongest return-support signal. Employees reduce their hours with no income impact — highest retention value, and in practice the cost difference vs 75% is modest.`,
+    },
+  };
+  return (notes[dial] || {})[value] || null;
+}
+
+// ── SCORING ───────────────────────────────────────────────────────────────────
+const scoreLeave = (data) => {
+  let pts = 0, max = 0;
+  const dur = data.leaveDuration || 0;
+  max += 5; if (dur >= 20) pts += 5; else if (dur >= 16) pts += 4; else if (dur >= 12) pts += 3; else if (dur >= 8) pts += 2; else if (dur >= 4) pts += 1;
+  max += 4; pts += ({ "100_direct": 4, "100_topup": 3, "80": 2, "60": 1, std_only: 0 }[data.payFT] || 0);
+  max += 3; const ramp = data.rampUp || 0; if (ramp >= 4) pts += 3; else if (ramp >= 2) pts += 2; else if (ramp >= 1) pts += 1;
+  max += 3; pts += ({ fullflex: 3, flexible: 2, chunks12: 2, "2chunks": 1, block: 0 }[data.flexibility] || 0);
+  max += 3; pts += ({ day1: 3, "30d": 2, "90d": 2, "6mo": 1, "1yr": 0 }[data.eligibilityWindow] || 0);
+  max += 2; if (data.leaveWindow === "24mo") pts += 2; else if (data.leaveWindow === "12mo") pts += 1;
+  const pct = pts / max;
+  return pct >= 0.82 ? "best-in-class" : pct >= 0.62 ? "above-market" : pct >= 0.40 ? "market" : "below-market";
+};
+
+// ── POLICY BUILDER ────────────────────────────────────────────────────────────
+function buildPolicy(data, profile) {
+  const co = profile.company ? profile.company.replace(/\b\w/g, c => c.toUpperCase()) : "[COMPANY]";
+  const today = new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const isSplit = data.leaveStructure === "split";
+  const hasPT = (data.eligibleTypes || []).includes("part_time");
+  const dur = data.leaveDuration || 0;
+  const recov = data.recoveryExtended || "min";
+  const recovLabel = { min: "6–8 weeks (physician-determined)", "10": "10 weeks", "12": "12 weeks", "16": "16 weeks" }[recov] || "6–8 weeks";
+
+  const eligMap = { day1: "their first day of employment", "30d": "30 days of employment", "90d": "90 days of employment", "6mo": "6 months of employment", "1yr": "one year of employment" };
+  const eligText = eligMap[data.eligibilityWindow] || "90 days of employment";
+
+  const flexMap = {
+    block: "Leave must be taken as one continuous block.",
+    "2chunks": "Leave may be split into up to two separate blocks, used within 12 months of the qualifying event.",
+    chunks12: "Leave may be taken in multiple blocks of no less than two weeks each, at any point within 12 months of the qualifying event.",
+    flexible: "Leave may be taken flexibly — in multiple blocks of no less than one week each — within 12 months of the qualifying event. Scheduling is coordinated with your manager.",
+    fullflex: "Leave may be taken in any configuration, with no minimum block size, within 12 months of the qualifying event. Employees and managers are expected to plan usage collaboratively.",
+  };
+  const flexText = flexMap[data.flexibility] || flexMap["chunks12"];
+
+  const windowMap = { "6mo": "6 months", "12mo": "12 months", "24mo": "24 months" };
+  const windowText = windowMap[data.leaveWindow] || "12 months";
+
+  const rampWks = data.rampUp || 0;
+  const rampPayPct = data.rampUpPay || "75";
+  const rampPayLabel = { "50": "50%", "75": "75%", "100": "100%" }[rampPayPct] || "75%";
+  const rampFlexMap = {
+    block: "consecutively", "2chunks": "consecutively or in two blocks",
+    chunks12: "flexibly", flexible: "flexibly", fullflex: "flexibly",
+  };
+  const rampFlex = rampFlexMap[data.flexibility] || "flexibly";
+  const rampText = rampWks > 0
+    ? `Employees returning from parental leave are eligible for a ${rampWks}-week return-to-work ramp-up period. During this period, employees work a reduced schedule (we recommend starting around half-time — approximately 20 hours per week — for the first week or two, then increasing gradually) at ${rampPayLabel} of their regular base salary. Ramp-up days may be taken ${rampFlex} within the ${({ "6mo": "6-month", "12mo": "12-month", "24mo": "24-month" }[data.leaveWindow] || "12-month")} window from the qualifying event. Employees should discuss their proposed schedule with their manager at least two weeks before returning.`
+    : null;
+
+  const payMap = {
+    std_only: "Pay during leave will be provided through any applicable Short-Term Disability (STD) insurance and state Paid Family Leave (PFL) benefits. [COMPANY] does not provide additional top-up pay beyond these programs.",
+    "60": "[COMPANY] will supplement any state PFL or STD benefits to ensure employees receive 60% of their regular base salary during the leave period.",
+    "80": "[COMPANY] will supplement any state PFL or STD benefits to ensure employees receive 80% of their regular base salary during the leave period.",
+    "100_topup": "[COMPANY] will top up any state PFL or STD benefits to ensure employees receive 100% of their regular base salary during the leave period. Employees in states without PFL or STD programs will receive 100% of base salary paid directly by [COMPANY].",
+    "100_direct": "[COMPANY] pays 100% of employees' regular base salary during leave, independent of any state PFL or STD benefits. Employees are still required to apply for any available state benefits; amounts received will be coordinated with payroll.",
+  };
+  const payText = (payMap[data.payFT] || payMap["80"]).replace(/\[COMPANY\]/g, co);
+
+  const ptPayMap = {
+    none: `Part-time employees are not eligible for paid parental leave. Unpaid leave of absence may be requested and will be considered on a case-by-case basis.`,
+    prorated: `Part-time employees are eligible for parental leave paid on a pro-rated basis, calculated according to their regular scheduled hours as a proportion of a standard full-time schedule.`,
+    ft_equiv: `Part-time employees are eligible for parental leave paid at the full-time equivalent rate, regardless of scheduled hours.`,
+  };
+  const ptPayText = hasPT ? (ptPayMap[data.payPT] || ptPayMap["prorated"]) : null;
+
+  const bonusMap = {
+    none: "Employees on parental leave are not eligible for bonus or variable compensation accrual during the leave period.",
+    prorated: "Employees on parental leave remain eligible for any performance bonus on a pro-rated basis, calculated based on the number of months actively employed during the performance period.",
+    full: "Employees on parental leave remain eligible for their full performance bonus for any performance period during which their leave falls, as if they had been actively employed for the full period.",
+  };
+  const bonusText = bonusMap[data.bonusesFT] || bonusMap["prorated"];
+
+  const commMap = {
+    none: "Quota-carrying employees on parental leave are not eligible for commission payments during the leave period.",
+    prorated: "Quota-carrying employees on parental leave will receive a commission draw equal to the average of their commissions over the three months preceding the leave, paid on a monthly basis during leave.",
+    full: "Quota-carrying employees on parental leave will receive their full target commission for the duration of leave, calculated based on their commission plan at the time of leave commencement.",
+  };
+  const commText = commMap[data.commissions] || commMap["prorated"];
+
+  const lossText = data.childLossLeave === "yes"
+    ? `\n\n## Leave for Pregnancy Loss and Infant Loss\n\n${co} provides up to two weeks of paid bereavement leave for employees who experience a pregnancy loss, failed adoption, or infant loss. This leave is available to any employee involved in the event, regardless of tenure, and is separate from any parental leave entitlement. Employees do not need to provide medical documentation beyond what they are comfortable sharing. Questions about this leave should be directed to People Operations.`
+    : "";
+
+  const clawbackText = {
+    none: "",
+    partial: `\n\n## Return-to-Work Commitment\n\nEmployees who do not return to active employment following parental leave may be required to repay a pro-rated portion of any company-paid top-up amounts, based on the length of time employed following their return. ${co}'s People team will provide the specific repayment schedule in writing prior to the start of leave.`,
+    full: `\n\n## Return-to-Work Commitment\n\nEmployees are expected to return to active employment following the conclusion of their parental leave. Employees who do not return and remain employed for a minimum period following return (as specified in the accompanying Repayment Agreement) may be required to repay the full value of company-paid top-up amounts received during leave. Counsel review is required before this clause is enforced, particularly for California-based employees.`,
+  }[data.clawback] || "";
+
+  const stateList = (data.states || []);
+  const stateNote = stateList.length > 0
+    ? `\n\n## Coordination with State Benefits\n\n${co} employees in ${stateList.join(", ")} may be eligible for state-administered Paid Family Leave or Short-Term Disability benefits. Where applicable, ${co} will coordinate company-paid leave with state benefits so that employees receive the greater of the two, up to the amounts specified in this policy. Employees are required to apply for any available state benefits promptly upon commencing leave; failure to do so may affect the timing of company-paid top-up. People Operations will provide state-specific guidance at the time of leave notification.`
+    : "";
+
+  return `# Parental Leave Policy
+**${co} · Effective ${today}**
+
+---
+
+## Purpose
+
+Having a child is one of the most significant moments in a person's life. ${co}'s parental leave policy exists to give every new parent the time and financial security they need to welcome their child — without having to worry about work. We want people to take their full leave, come back when they're ready, and feel supported through the whole process.
+
+---
+
+## Who This Applies To
+
+This policy applies to all full-time U.S.-based employees who have completed ${eligText}. Leave must begin while the employee is actively employed.${hasPT ? ` Part-time employees are also covered, as described below.` : ""}
+
+Covered parent types include:
+${(data.parentTypes || []).map(t => ({
+  birthing: "- Birth parents",
+  non_birthing: "- Non-birth parents (partners, co-parents)",
+  adoptive: "- Adoptive parents",
+  foster: "- Foster parents",
+  guardian: "- Employees who become legal guardians of a newly placed child",
+  surrogacy: "- Intended parents through surrogacy",
+})[t]).filter(Boolean).join("\n")}
+
+---
+
+## Leave Entitlement
+
+${isSplit ? `### Bonding Leave (All Eligible Parents)
+
+All eligible parents may take up to **${dur} weeks** of paid parental bonding leave following the birth, adoption, or placement of a child. ${flexText}
+
+All bonding leave must be completed within **${windowText}** of the qualifying event.
+
+### Childbirth Recovery Leave (Birthing Parents Only)
+
+In addition to bonding leave, birthing parents are entitled to a childbirth recovery period of up to **${recovLabel}**, as determined by their treating physician. Recovery leave begins immediately following birth. The company will coordinate recovery leave with any applicable Short-Term Disability benefit.
+
+The total leave available to a birthing parent is their recovery period plus their full bonding leave entitlement.` :
+`### Paid Parental Leave (All Eligible Parents)
+
+All eligible parents may take up to **${dur} weeks** of paid parental leave following the birth, adoption, or placement of a child. ${flexText}
+
+All leave must be completed within **${windowText}** of the qualifying event.`}
+
+---
+
+## Pay During Leave
+
+### Full-Time Employees
+
+${payText}
+
+Employees must apply for any available state Paid Family Leave or Short-Term Disability benefits they are eligible for. People Operations will help you navigate the process.
+${hasPT ? `\n### Part-Time Employees\n\n${ptPayText}` : ""}
+
+---
+
+## Return-to-Work Ramp-Up
+
+${rampText || `${co} does not currently provide a formal return-to-work ramp-up period. Employees are encouraged to discuss any transition support needs with their manager before returning.`}
+
+---
+
+## Benefits Continuation
+
+Benefits coverage (health, dental, vision) continues without interruption during parental leave. Employees remain responsible for any employee-paid premium contributions during their leave.
+
+---
+
+## Bonus and Variable Compensation
+
+${bonusText}
+
+${data.commissions ? commText : ""}
+
+---
+
+## How to Request Leave
+
+1. **Notify People Operations and your manager** as soon as reasonably practicable — ideally at least 30 days before your expected leave start date.${data.earlyNotice ? " Employees who provide 8+ weeks advance notice will receive a $500 early-notification bonus, paid in the first payroll following notification." : ""}
+2. **Complete the leave request form** provided by People Operations. You'll need to include your expected leave start date and estimated return date.
+3. **Apply for state benefits** if you're in a state with PFL or STD programs. People Operations will walk you through this.
+4. **Coordinate handoffs** with your manager at least two weeks before your leave begins.
+5. **Confirm your return date** with People Operations and your manager at least two weeks before you plan to come back.
+
+---
+
+## Manager and People Team Responsibilities
+
+**Managers** are responsible for planning coverage during leave, conducting a handoff meeting with the employee before they depart, and welcoming them back without pressure to immediately operate at full capacity.
+
+**People Operations** is responsible for processing leave paperwork, coordinating state benefit applications, calculating top-up amounts, notifying payroll, and serving as the primary point of contact for employees throughout their leave.
+
+**Payroll** is responsible for ensuring accurate pay calculations throughout the leave period, including STD or PFL offsets.
+
+---
+
+## Multiple Leave Events
+
+${data.multipleEventCap === "no_cap" ? `${co} does not cap parental leave in a rolling 12-month period. Each qualifying event resets the employee's entitlement.` : data.multipleEventCap === "cap_1x" ? `In the event of multiple qualifying events within a 12-month period, an employee's total paid parental leave is capped at one full policy cycle per year.` : `Contact People Operations for guidance on leave entitlement when multiple qualifying events occur within a 12-month period.`}
+${lossText}${clawbackText}${stateNote}${data.unpaidExtension === "yes" ? "\n\n---\n\nUNPAID LEAVE EXTENSION\n\nEmployees who have exhausted their paid parental leave may request an unpaid leave of absence. Unpaid extensions are not guaranteed — they are approved on a case-by-case basis jointly by the employee's manager and People Operations. Requests must be submitted in writing at least two weeks before the paid leave period ends." : ""}
+
+---
+
+## Questions
+
+Direct all parental leave questions to People Operations at **people@${co.toLowerCase().replace(/\s+/g, "")}.com**. We're here to help — reach out early and often.
+
+---
+
+*This policy is subject to change. In the event of a conflict between this policy and applicable state or local law, the law controls. This policy does not constitute a contract of employment.*`;
+}
+
+// ── ADVISORY BUILDER ──────────────────────────────────────────────────────────
+function buildAdvisory(data, profile) {
+  const bench = getBenchmarks(profile);
+  const stage = profile.stage || "your stage";
+  const hc = profile.tier === "high-cost";
+  const dur = data.leaveDuration || 0;
+  const benchMin = bench.leaveDuration?.min || 8;
+  const hasPT = (data.eligibleTypes || []).includes("part_time");
+
+  const items = [];
+
+  // Critical gaps first
+  if (dur < benchMin - 2) {
+    items.push({
+      priority: "critical",
+      label: "Leave Duration Is Below Market",
+      icon: "🔴",
+      text: `At ${dur} weeks, your leave is ${benchMin - dur} weeks below the minimum market expectation for ${stage}${hc ? " in a high-cost market" : ""}. This will come up in recruiting conversations — candidates at ${stage} level are comparing offers, and leave is increasingly a deciding factor. The cost delta between ${dur} and ${benchMin} weeks is typically small relative to total comp; the recruiting and retention impact is not.`,
+    });
+  }
+
+  if (data.payFT === "std_only") {
+    items.push({
+      priority: "critical",
+      label: "No Pay Top-Up Creates Real Financial Risk",
+      icon: "🔴",
+      text: `Relying on STD-only means employees in TX, FL, GA, and other non-PFL states may receive near-zero income during leave. This is the single highest predictor of non-return in leave policy research. The cost to implement even a partial top-up is almost always less than the backfill cost of losing a returning employee. If budget is tight, an 80% top-up is the pragmatic floor.`,
+    });
+  }
+
+  if (hasPT && !data.payPT) {
+    items.push({
+      priority: "critical",
+      label: "Part-Time Leave Pay Not Defined",
+      icon: "🔴",
+      text: `You've included part-time employees in eligibility but haven't defined their pay during leave. This needs to be resolved before the policy goes live — ambiguity here creates both legal exposure and employee relations issues. Pro-rated pay is the standard approach.`,
+    });
+  }
+
+  // Significant gaps
+  if (data.rampUp === 0) {
+    items.push({
+      priority: "gap",
+      label: "No Return Ramp-Up",
+      icon: "🟡",
+      text: `A cold return from leave — especially for primary caregivers — is the most common point of failure in leave programs. Even one or two weeks of reduced schedule at full pay costs very little and meaningfully improves return rates. This is a high-ROI addition to any leave policy.`,
+    });
+  }
+
+  if (data.eligibilityWindow === "1yr") {
+    items.push({
+      priority: "gap",
+      label: "1-Year Eligibility Is Below Market Trend",
+      icon: "🟡",
+      text: `A one-year waiting period is the FMLA floor, but ${stage} companies have largely moved to 90-day eligibility as the default. A new hire who joins and becomes pregnant in month 2 has no coverage under this policy — which creates both a legal gap (in some states) and a significant employee relations problem. Moving to 90 days is low-risk and expected.`,
+    });
+  }
+
+  if (data.flexibility === "block" && dur >= 12) {
+    items.push({
+      priority: "gap",
+      label: "Long Leave as Block-Only Is Limiting",
+      icon: "🟡",
+      text: `Offering ${dur} weeks but requiring it be taken as a single continuous block limits its usefulness. Many parents want to split leave — taking time at birth, then again when a partner returns to work, or when primary caregiver status shifts. Splitting into chunks within 12 months adds no cost and significantly increases the real-world value of your benefit.`,
+    });
+  }
+
+  if (data.bonusesFT === "none") {
+    items.push({
+      priority: "gap",
+      label: "No Bonus Eligibility During Leave Creates Perverse Incentive",
+      icon: "🟡",
+      text: `When employees aren't eligible for bonuses during leave, they have a financial incentive to time their return around bonus cycles — which means cutting leave short. This undermines the benefit you're offering. Pro-rated bonus eligibility is the standard, costs relatively little, and removes this pressure entirely.`,
+    });
+  }
+
+  // Strengths
+  if (dur >= benchMin + 4) {
+    items.push({
+      priority: "strength",
+      label: "Leave Duration Is a Genuine Differentiator",
+      icon: "🟢",
+      text: `At ${dur} weeks, you're above market for ${stage}. Lead with this in job descriptions and recruiting conversations — it's a concrete signal of company values that candidates respond to. Make sure managers are trained to actively encourage employees to take their full leave; policy length only matters if the culture supports using it.`,
+    });
+  }
+
+  if (data.payFT === "100_topup" || data.payFT === "100_direct") {
+    items.push({
+      priority: "strength",
+      label: "Full Pay Is Your Strongest Retention Tool",
+      icon: "🟢",
+      text: `Full pay during leave is the single highest-impact element of any leave policy. Financial stress is the primary driver of non-returns. By eliminating that stress, you dramatically improve the likelihood that employees return, stay, and perform well. Make sure the mechanics are clearly documented — employees and payroll both need to understand how STD offsets work before the first leave event.`,
+    });
+  }
+
+  if ((data.rampUp || 0) >= 4) {
+    items.push({
+      priority: "strength",
+      label: "Ramp-Up Period Signals Real Investment in Returns",
+      icon: "🟢",
+      text: `A ${data.rampUp}-week ramp-up is above market and genuinely differentiating. The transition back to full workload — particularly for primary caregivers — is where many leave programs fail. Your ramp-up policy directly addresses this. Pair it with manager guidance on what a good ramp-up actually looks like in practice.`,
+    });
+  }
+
+  // Implementation notes
+  const implNotes = [];
+  if ((data.states || []).length > 0) {
+    implNotes.push(`State PFL/STD offset mechanics must be documented before the first leave event. The offset calculation is where most payroll errors happen — make sure Finance and payroll understand the mechanics for each state your employees are in.`);
+  }
+  if (data.clawback === "full") {
+    implNotes.push(`Full clawback clauses require employment counsel review, especially for California employees. CA wage law significantly limits clawback enforceability — do not implement without counsel sign-off.`);
+  }
+  if (data.flexibility === "flexible" || data.flexibility === "fullflex") {
+    implNotes.push(`Flexible leave scheduling needs a clear tracking process before go-live. Decide now: who owns leave scheduling, how is it documented, and how does payroll know when leave is active vs. ramp-up vs. full-time?`);
+  }
+  if (data.commissions === "prorated" || data.commissions === "full") {
+    implNotes.push(`Commission treatment during leave needs to be modeled before go-live. Get Finance to run the math on your current sales team structure — full draw for a senior AE on a 16-week leave is a real cost line that should be in the budget.`);
+  }
+
+  return { items, implNotes };
+}
+
+
+// ── URL ENCODE / DECODE ───────────────────────────────────────────────────────
+function buildShareURL(data) {
+  const params = new URLSearchParams();
+  Object.entries(data).forEach(([k, v]) => {
+    if (v === null || v === undefined) return;
+    if (Array.isArray(v)) { if (v.length) params.set(k, v.join(",")); }
+    else params.set(k, String(v));
+  });
+  const base = window.location.href.split("?")[0];
+  return `${base}?${params.toString()}`;
+}
+
+function loadFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.size) return null;
+  const data = {};
+  const arrKeys = ["eligibleTypes", "states", "parentTypes"];
+  params.forEach((v, k) => {
+    data[k] = arrKeys.includes(k) ? v.split(",") : isNaN(v) || v === "" ? v : Number(v);
+  });
+  return data;
+}
+
+// ── SELECTIONS SUMMARY ────────────────────────────────────────────────────────
+function buildSelections(data, profile) {
+  const rows = [];
+
+  // Company context
+  if (data.context) rows.push({ section: "Company", label: "Context", value: data.context });
+  if (profile.stage) rows.push({ section: "Company", label: "Stage detected", value: profile.stage + (profile.tier === "high-cost" ? " · high-cost market" : "") });
+
+  // Eligibility
+  const eligTypes = (data.eligibleTypes || []);
+  if (eligTypes.length) rows.push({ section: "Eligibility", label: "Eligible employees", value: eligTypes.map(t => ({ full_time: "Full-time", part_time: "Part-time", contractors: "Contractors / 1099s" })[t]).join(", ") });
+  const states = (data.states || []);
+  if (states.length) rows.push({ section: "Eligibility", label: "States with employees", value: states.join(", ") + (data.otherStates ? `, ${data.otherStates}` : "") });
+  else if (data.otherStates) rows.push({ section: "Eligibility", label: "States with employees", value: data.otherStates });
+
+  const eligMap = { day1: "Day 1", "30d": "30 days", "90d": "90 days", "6mo": "6 months", "1yr": "1 year" };
+  if (data.eligibilityWindow) rows.push({ section: "Eligibility", label: "Eligibility window", value: eligMap[data.eligibilityWindow] });
+
+  // Parent types
+  const parentLabels = { birthing: "Birthing parent", non_birthing: "Non-birthing parent", adoptive: "Adoptive", foster: "Foster", guardian: "Legal guardian", surrogacy: "Surrogacy (intended parent)" };
+  const pts = (data.parentTypes || []).map(t => parentLabels[t]).filter(Boolean);
+  if (pts.length) rows.push({ section: "Parent Types", label: "Covered parents", value: pts.join(", ") });
+  if (data.equalLeave) rows.push({ section: "Parent Types", label: "Leave structure", value: data.equalLeave === "yes" ? "Equal leave for all parents" : "Split: recovery + bonding" });
+
+  // Core benefit
+  if (data.leaveDuration) rows.push({ section: "Core Benefit", label: data.leaveStructure === "split" ? "Bonding leave" : "Leave duration", value: `${data.leaveDuration} weeks` });
+  const payFTLabels = { std_only: "STD only (no top-up)", "60": "60% of base salary", "80": "80% of base salary", "100_topup": "100% via STD top-up", "100_direct": "100% direct pay" };
+  if (data.payFT) rows.push({ section: "Core Benefit", label: "Pay during leave (FT)", value: payFTLabels[data.payFT] });
+  if (data.payPT) {
+    const ptLabels = { none: "Unpaid", prorated: "Pro-rated to hours", ft_equiv: "Full-time equivalent" };
+    rows.push({ section: "Core Benefit", label: "Pay during leave (PT)", value: ptLabels[data.payPT] });
+  }
+  if (data.leaveStructure === "split" && data.recoveryExtended) {
+    const recLabels = { min: "6–8 weeks (physician)", "10": "10 weeks", "12": "12 weeks", "16": "16 weeks" };
+    rows.push({ section: "Core Benefit", label: "Recovery leave (birthing)", value: recLabels[data.recoveryExtended] });
+  }
+
+  // Structure
+  const flexLabels = { block: "Block only", "2chunks": "Up to 2 chunks", chunks12: "Chunks within 12 months", flexible: "Flexible chunks", fullflex: "Fully flexible" };
+  if (data.flexibility) rows.push({ section: "Structure", label: "Leave flexibility", value: flexLabels[data.flexibility] });
+  if (data.rampUp !== undefined && data.rampUp !== null) rows.push({ section: "Structure", label: "Return ramp-up", value: data.rampUp === 0 ? "None" : `${data.rampUp} weeks` });
+  if (data.rampUpPay && (data.rampUp || 0) > 0) {
+    const rpLabels = { "50": "50% pay", "75": "75% pay", "100": "Full pay (100%)" };
+    rows.push({ section: "Structure", label: "Ramp-up pay rate", value: rpLabels[data.rampUpPay] });
+  }
+  const windowLabels = { "6mo": "6 months", "12mo": "12 months", "24mo": "24 months" };
+  if (data.leaveWindow) rows.push({ section: "Structure", label: "Use-by window", value: windowLabels[data.leaveWindow] });
+
+  // Pay details
+  const bonusFTLabels = { none: "Not eligible", prorated: "Prorated", full: "Full bonus" };
+  if (data.bonusesFT) rows.push({ section: "Pay Details", label: "Bonus eligibility (FT)", value: bonusFTLabels[data.bonusesFT] });
+  if (data.bonusesPT) rows.push({ section: "Pay Details", label: "Bonus eligibility (PT)", value: bonusFTLabels[data.bonusesPT] });
+  const commLabels = { none: "None", prorated: "Prorated draw", full: "Full draw" };
+  if (data.commissions) rows.push({ section: "Pay Details", label: "Commission treatment", value: commLabels[data.commissions] });
+
+  // Edge cases
+  const capLabels = { no_cap: "No cap — each event resets", cap_1x: "Capped at 1 cycle / year", cap_custom: "Custom" };
+  if (data.multipleEventCap) rows.push({ section: "Edge Cases", label: "Multiple events", value: capLabels[data.multipleEventCap] });
+  if (data.childLossLeave) rows.push({ section: "Edge Cases", label: "Pregnancy/infant loss leave", value: data.childLossLeave === "yes" ? "Yes — paid bereavement" : "Not included" });
+  if (data.clawback) rows.push({ section: "Edge Cases", label: "Clawback", value: { none: "None", partial: "Pro-rated repayment", full: "Full repayment" }[data.clawback] });
+  if (data.unpaidExtension) rows.push({ section: "Edge Cases", label: "Unpaid leave extension", value: data.unpaidExtension === "yes" ? "Yes — case-by-case" : "Not offered" });
+
+  return rows;
+}
+
+// ── CONTEXT PAGE ──────────────────────────────────────────────────────────────
+const ContextPage = ({ value, onChange, onContinue }) => {
+  const profile = parseStage(value);
+  const hasContext = value && value.trim().length > 20;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      {/* header */}
+      <div style={{ background: C.union, padding: "16px 32px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff", fontSize: 16 }}>U</div>
+        <span style={{ fontWeight: 700, fontSize: 18, color: "#fff", letterSpacing: "-0.3px" }}>Union</span>
+        <span style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginLeft: 4 }}>/ Parental Leave Builder</span>
+      </div>
+
+      <div style={{ maxWidth: 620, margin: "0 auto", padding: "48px 20px" }}>
+        <div style={{ fontSize: 30, fontWeight: 800, color: C.text, lineHeight: 1.2, marginBottom: 10, letterSpacing: "-0.5px" }}>Let's set the stage.</div>
+        <div style={{ fontSize: 15, color: C.muted, lineHeight: 1.7, marginBottom: 32 }}>
+          Every benchmark and recommendation in this tool is calibrated to your company's stage, market, and talent competition. The more context you give us, the more useful the output.
+        </div>
+
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 28, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+          <Label sub="Include: funding stage, headcount, locations, who you compete with for talent, and your company name if you'd like it in the policy.">
+            Tell us about your company
+          </Label>
+          <textarea value={value} onChange={e => onChange(e.target.value)}
+            placeholder={"E.g.: We're a Series A SaaS company in NYC, about 45 employees. We compete for talent against other VC-backed startups and sometimes larger tech companies like Salesforce. Company name is Northstar."}
+            rows={7}
+            style={{
+              width: "100%", boxSizing: "border-box", marginTop: 8,
+              border: `2px solid ${C.border}`, borderRadius: 8, padding: "12px 14px",
+              fontFamily: "inherit", fontSize: 13, color: C.text,
+              background: C.surface, resize: "vertical", outline: "none", lineHeight: 1.6,
+            }}
+          />
+
+          {hasContext && (
+            <div style={{ marginTop: 16, background: C.unionLight, border: `1px solid ${C.unionMid}`, borderRadius: 10, padding: "14px 16px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: C.union, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>What we heard</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: profile.stage ? 10 : 0 }}>
+                {profile.stage && <span style={{ background: C.union, color: "#fff", borderRadius: 20, padding: "3px 12px", fontSize: 12, fontWeight: 600 }}>{profile.stage}</span>}
+                {profile.tier === "high-cost" && <span style={{ background: "#1E3A8A", color: "#BAE6FD", borderRadius: 20, padding: "3px 12px", fontSize: 12 }}>High-cost market</span>}
+                {profile.isTopTier && <span style={{ background: "#312E81", color: "#C7D2FE", borderRadius: 20, padding: "3px 12px", fontSize: 12 }}>vs. top-tier tech</span>}
+                {profile.headcount && <span style={{ background: "#1E293B", color: "#94A3B8", borderRadius: 20, padding: "3px 12px", fontSize: 12 }}>{profile.headcount} employees</span>}
+                {profile.company && <span style={{ background: "#064E3B", color: "#6EE7B7", borderRadius: 20, padding: "3px 12px", fontSize: 12 }}>{profile.company}</span>}
+                {!profile.stage && <span style={{ fontSize: 12, color: C.muted }}>Using general VC-backed startup benchmarks — add your stage for tighter calibration.</span>}
+              </div>
+              {profile.stage && (
+                <div style={{ fontSize: 12, color: C.union, lineHeight: 1.7 }}>
+                  {profile.stage === "Seed" && `Seed benchmarks: market leave is 4–8 wks in standard markets, 8–12 wks if competing in SF/NYC. 100% top-up is not yet standard but increasingly expected as you hire more senior talent.`}
+                  {profile.stage === "Series A" && `Series A benchmarks: 8–12 wks is at-market; 12–16 wks is above. 80–100% top-up is the expectation in competitive markets. Eligibility at 90 days is the norm.`}
+                  {profile.stage === "Series B+" && `Series B+ benchmarks: 12–16 wks is at-market; 16+ is above. 100% top-up is expected. You're competing against companies with well-developed leave packages — gaps will show up in recruiting.`}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button onClick={onContinue} disabled={!hasContext} style={{
+          width: "100%", marginTop: 16, padding: "15px",
+          background: hasContext ? C.union : C.borderDark, color: "#fff",
+          border: "none", borderRadius: 10, fontFamily: "inherit",
+          fontWeight: 700, fontSize: 15, cursor: hasContext ? "pointer" : "not-allowed",
+        }}>
+          {hasContext ? "Continue to policy design →" : "Tell us about your company to continue"}
+        </button>
+        <div style={{ fontSize: 11, color: C.mutedLight, textAlign: "center", marginTop: 10 }}>You can edit context at any time.</div>
+      </div>
+    </div>
+  );
+};
+
+// ── REPORT PAGE ───────────────────────────────────────────────────────────────
+const ReportPage = ({ data, profile, onBack, onReset }) => {
+  const [tab, setTab] = useState("policy");
+  const [copied, setCopied] = useState(false);
+  const [shared, setShared] = useState(false);
+  const pos = scoreLeave(data);
+  const posInfo = { "best-in-class": { label: "Best-in-Class", color: "#15803D", bg: "#F0FDF4", border: "#16A34A" }, "above-market": { label: "Above Market", color: "#0369A1", bg: "#EFF6FF", border: "#3B82F6" }, "market": { label: "At Market", color: "#92400E", bg: "#FFFBEB", border: "#D97706" }, "below-market": { label: "Below Market", color: "#7F1D1D", bg: "#FEF2F2", border: "#DC2626" } }[pos];
+  const policy = buildPolicy(data, profile);
+  const { items, implNotes } = buildAdvisory(data, profile);
+
+  const criticals = items.filter(i => i.priority === "critical");
+  const gaps = items.filter(i => i.priority === "gap");
+  const strengths = items.filter(i => i.priority === "strength");
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      {/* header */}
+      <div style={{ background: C.union, padding: "14px 32px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff", fontSize: 14 }}>U</div>
+        <span style={{ fontWeight: 700, fontSize: 17, color: "#fff" }}>Union</span>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 4 }}>/ Parental Leave Report</span>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <button onClick={() => {
+            const url = buildShareURL(data);
+            navigator.clipboard.writeText(url).then(() => { setShared(true); setTimeout(() => setShared(false), 3000); });
+          }} style={{ background: shared ? "#15803D" : "#FFAA06", color: shared ? "#fff" : "#211E1B", border: "none", borderRadius: 7, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "background .2s" }}>
+            {shared ? "✓ Link copied!" : "📤 Share with Union"}
+          </button>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 7, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>← Edit</button>
+          <button onClick={onReset} style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 7, padding: "7px 14px", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Start over</button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 780, margin: "0 auto", padding: "32px 20px 60px" }}>
+        {/* positioning badge */}
+        <div style={{ background: posInfo.bg, border: `2px solid ${posInfo.border}`, borderRadius: 12, padding: "16px 22px", marginBottom: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+              Market Positioning{profile.stage ? ` · ${profile.stage}` : ""}
+            </div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: posInfo.color, letterSpacing: "-0.5px" }}>{posInfo.label}</div>
+          </div>
+          <div style={{ fontSize: 36 }}>{pos === "best-in-class" ? "🏆" : pos === "above-market" ? "⬆️" : pos === "market" ? "➡️" : "⬇️"}</div>
+        </div>
+
+        {/* tabs */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 24, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: 4 }}>
+          {[{ id: "policy", label: "📄 Policy Draft" }, { id: "advisory", label: "📊 Advisory" }, { id: "selections", label: "☑️ Selections" }].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              flex: 1, padding: "10px", border: "none", borderRadius: 8,
+              background: tab === t.id ? C.union : "transparent",
+              color: tab === t.id ? "#fff" : C.muted,
+              fontFamily: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer",
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {/* POLICY TAB */}
+        {tab === "policy" && (
+          <div>
+            <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: 32, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                <div style={{ fontSize: 13, color: C.muted }}>Ready to copy into your handbook or share with counsel for review.</div>
+                <button onClick={() => {
+                  navigator.clipboard.writeText(policy).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+                }} style={{ background: copied ? "#15803D" : C.union, color: "#fff", border: "none", borderRadius: 7, padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "background .2s" }}>
+                  {copied ? "✓ Copied!" : "Copy policy"}
+                </button>
+              </div>
+              <div style={{ fontFamily: "Georgia, serif", lineHeight: 1.8, color: C.text, whiteSpace: "pre-wrap", fontSize: 14 }}>
+                {policy}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADVISORY TAB */}
+        {tab === "advisory" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {criticals.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: C.red, marginBottom: 10 }}>Needs Attention</div>
+                {criticals.map((item, i) => (
+                  <div key={i} style={{ background: C.errorBg, border: `1.5px solid ${C.errorBorder}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.error, marginBottom: 5 }}>{item.label}</div>
+                        <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.7 }}>{item.text}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {gaps.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#92400E", marginBottom: 10, marginTop: criticals.length > 0 ? 8 : 0 }}>Consider Improving</div>
+                {gaps.map((item, i) => (
+                  <div key={i} style={{ background: C.warnBg, border: `1.5px solid ${C.warnBorder}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.warn, marginBottom: 5 }}>{item.label}</div>
+                        <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.7 }}>{item.text}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {strengths.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: "#15803D", marginBottom: 10, marginTop: 8 }}>Strengths</div>
+                {strengths.map((item, i) => (
+                  <div key={i} style={{ background: C.successBg, border: `1.5px solid ${C.successBorder}`, borderRadius: 10, padding: "16px 18px", marginBottom: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: C.success, marginBottom: 5 }}>{item.label}</div>
+                        <div style={{ fontSize: 13, color: C.textSub, lineHeight: 1.7 }}>{item.text}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {implNotes.length > 0 && (
+              <div style={{ background: C.infoBg, border: `1.5px solid ${C.infoBorder}`, borderRadius: 10, padding: "16px 18px", marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, color: C.union, marginBottom: 12 }}>Before You Go Live</div>
+                {implNotes.map((note, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, fontSize: 13, color: C.info, lineHeight: 1.7, marginBottom: i < implNotes.length - 1 ? 10 : 0 }}>
+                    <span style={{ flexShrink: 0, marginTop: 2 }}>→</span>
+                    <span>{note}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {items.length === 0 && (
+              <div style={{ background: C.successBg, border: `1.5px solid ${C.successBorder}`, borderRadius: 10, padding: "20px 22px", textAlign: "center" }}>
+                <div style={{ fontSize: 20, marginBottom: 8 }}>🏆</div>
+                <div style={{ fontWeight: 700, color: C.success, fontSize: 15 }}>No major gaps identified</div>
+                <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>This is a strong policy. Review the draft and share with counsel before rolling out.</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* SELECTIONS TAB */}
+        {tab === "selections" && (() => {
+          const rows = buildSelections(data, profile);
+          const sections = [...new Set(rows.map(r => r.section))];
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ background: C.unionLight, border: `1px solid ${C.unionMid}`, borderRadius: 10, padding: "14px 18px", fontSize: 13, color: C.union, lineHeight: 1.6 }}>
+                These are the selections this client made. Share this page with Union by clicking <strong>📤 Share with Union</strong> in the header — it copies a link that opens the tool pre-filled with all their choices.
+              </div>
+              {sections.map(section => (
+                <div key={section} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                  <div style={{ background: C.dark, padding: "10px 18px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase", color: C.teal }}>{section}</div>
+                  </div>
+                  <div style={{ padding: "4px 0" }}>
+                    {rows.filter(r => r.section === section).map((row, i) => (
+                      <div key={i} style={{ display: "flex", gap: 16, padding: "10px 18px", borderBottom: i < rows.filter(r => r.section === section).length - 1 ? `1px solid ${C.border}` : "none", alignItems: "flex-start" }}>
+                        <div style={{ fontSize: 12, color: C.muted, minWidth: 180, flexShrink: 0, paddingTop: 1 }}>{row.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text, lineHeight: 1.5 }}>{row.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop: 4 }}>
+                <button onClick={() => {
+                  const url = buildShareURL(data);
+                  navigator.clipboard.writeText(url).then(() => { setShared(true); setTimeout(() => setShared(false), 3000); });
+                }} style={{ width: "100%", padding: "14px", background: "#FFAA06", color: "#211E1B", border: "none", borderRadius: 10, fontFamily: "inherit", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                  {shared ? "✓ Link copied to clipboard!" : "📤 Copy link to share with Union"}
+                </button>
+                <div style={{ fontSize: 11, color: C.muted, textAlign: "center", marginTop: 8 }}>
+                  Paste this link in an email or Slack to Union. We'll open it and see exactly what you selected.
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+    </div>
+  );
+};
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+function App() {
+  const urlData = loadFromURL();
+  const [page, setPage] = useState(urlData ? "report" : "context");
+  const [data, setData] = useState(urlData || {});
+  const setField = key => val => setData(prev => ({ ...prev, [key]: val }));
+  const toggleArr = (key, val) => setData(prev => {
+    const arr = prev[key] || [];
+    return { ...prev, [key]: arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val] };
+  });
+
+  const profile = parseStage(data.context || "");
+  const bench = getBenchmarks(profile);
+  const showSplit = data.leaveStructure === "split";
+  const hasPT = (data.eligibleTypes || []).includes("part_time");
+
+  if (page === "context") return <ContextPage value={data.context || ""} onChange={setField("context")} onContinue={() => setPage("survey")} />;
+  if (page === "report") return <ReportPage data={data} profile={profile} onBack={() => setPage("survey")} onReset={() => { setData({}); setPage("context"); }} />;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      {/* header */}
+      <div style={{ background: C.union, padding: "14px 32px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, color: "#fff", fontSize: 14 }}>U</div>
+        <span style={{ fontWeight: 700, fontSize: 17, color: "#fff" }}>Union</span>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", marginLeft: 4 }}>/ Parental Leave Policy Builder</span>
+        <button onClick={() => setPage("context")} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 7, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>← Edit context</button>
+      </div>
+
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "28px 20px 60px" }}>
+        {profile.stage && (
+          <div style={{ background: C.unionLight, border: `1px solid ${C.unionMid}`, borderRadius: 8, padding: "9px 14px", marginBottom: 20, fontSize: 12, color: C.union, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700 }}>📍 {profile.stage}{profile.tier === "high-cost" ? " · high-cost market" : ""}{profile.company ? ` · ${profile.company}` : ""}</span>
+            <span style={{ color: C.muted }}>— benchmarks calibrated throughout</span>
+          </div>
+        )}
+
+        {/* 1. Eligibility */}
+        <SectionCard title="Eligibility" step="1">
+          <div>
+            <Label>Which employees are eligible?</Label>
+            <CheckGroup
+              options={[
+                { value: "full_time", label: "Full-time employees" },
+                { value: "part_time", label: "Part-time employees", sub: "Pay dials will appear for PT use cases" },
+                { value: "contractors", label: "Contractors / 1099s", sub: "See compliance note below" },
+              ]}
+              values={data.eligibleTypes || []}
+              onChange={setField("eligibleTypes")}
+            />
+            {(data.eligibleTypes || []).includes("contractors") && (
+              <Warn>Extending paid parental leave to contractors creates significant misclassification risk. Union typically handles this via unpaid LOA with guaranteed return rights instead.</Warn>
+            )}
+          </div>
+
+          <div>
+            <Label sub="Select all that apply — we'll flag relevant compliance requirements.">Which of these states do you have employees in?</Label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+              {STATES_WITH_LAWS.map(s => {
+                const sel = (data.states || []).includes(s.code);
+                return (
+                  <button key={s.code} onClick={() => toggleArr("states", s.code)} style={{
+                    border: `2px solid ${sel ? C.union : C.border}`, borderRadius: 8,
+                    padding: "8px 12px", textAlign: "left", cursor: "pointer",
+                    background: sel ? C.unionLight : C.surface, fontFamily: "inherit",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                      <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, marginTop: 1, border: `2px solid ${sel ? C.union : C.borderDark}`, background: sel ? C.union : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {sel && <span style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>✓</span>}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.label}</div>
+                        <div style={{ fontSize: 11, color: C.muted }}>{s.note}</div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <Label sub="Any other states?">Other states</Label>
+              <input value={data.otherStates || ""} onChange={e => setField("otherStates")(e.target.value)} placeholder="e.g. TX, FL, IL"
+                style={{ width: "100%", boxSizing: "border-box", marginTop: 6, border: `2px solid ${C.border}`, borderRadius: 8, padding: "10px 12px", fontFamily: "inherit", fontSize: 13, color: C.text, background: C.surface, outline: "none" }}
+              />
+            </div>
+            {(data.states || []).length > 0 && <InfoBox>Employees in these states are covered by mandatory leave laws. Your policy must coordinate with state benefits — Union handles the offset mechanics in the drafted policy.</InfoBox>}
+          </div>
+        </SectionCard>
+
+        {/* 2. Parent Types */}
+        <SectionCard title="Covered Parent Types" step="2">
+          <div>
+            <Label>Which new parent types are covered?</Label>
+            <CheckGroup
+              withSelectAll
+              options={[
+                { value: "birthing",     label: "Birthing parent", sub: "Also entitled to recovery leave if split structure" },
+                { value: "non_birthing", label: "Non-birthing parent" },
+                { value: "adoptive",     label: "Adoptive parent" },
+                { value: "foster",       label: "Foster parent" },
+                { value: "guardian",     label: "Legal guardian" },
+                { value: "surrogacy",    label: "Intended parent through surrogacy" },
+              ]}
+              values={data.parentTypes || []}
+              onChange={setField("parentTypes")}
+            />
+          </div>
+          <div>
+            <Label sub="Equal = same weeks for everyone. Split = birthing parents get recovery leave on top of bonding leave.">Leave structure</Label>
+            <Radio
+              options={[
+                { value: "yes", label: "Equal leave for all parents", sub: "Same total weeks; simpler and more equitable" },
+                { value: "no",  label: "Split recovery + bonding", sub: "Birthing parents: recovery (STD-offset) + bonding. Others: bonding only." },
+              ]}
+              value={data.equalLeave}
+              onChange={val => { setField("equalLeave")(val); setField("leaveStructure")(val === "yes" ? "combined" : "split"); }}
+              cols={2}
+            />
+            {data.equalLeave === "yes" && <InfoBox>Combined leave is the inclusive default and easier to administer. Make sure FMLA + state disability requirements are still met for birthing parents within the window.</InfoBox>}
+            {data.equalLeave === "no"  && <InfoBox>Split structure is most common. Birthing parents receive 6–8 weeks recovery (STD-offset) plus bonding leave. All others receive bonding only.</InfoBox>}
+          </div>
+        </SectionCard>
+
+        {/* DIALS */}
+        {data.leaveStructure && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 4, letterSpacing: "-0.3px" }}>Set your policy dials</div>
+              <div style={{ fontSize: 13, color: C.muted }}>Each dial shows where you're landing vs. market. The vertical marker = benchmark for your stage.</div>
+            </div>
+
+            {/* CORE BENEFIT */}
+            <DialSection
+              title="Core Benefit"
+              profile={profile}
+              data={data}
+              setData={setData}
+              dials={[
+                { key: "leaveDuration", label: showSplit ? "Bonding Leave Duration" : "Leave Duration", sub: "Weeks of paid leave (all eligible parents)", isSlider: true },
+                { key: "payFT", label: "Pay During Leave — Full-Time", sub: "% of base salary for FT employees" },
+                { key: "payPT", label: "Pay During Leave — Part-Time", sub: "Pay treatment for PT employees", condition: hasPT },
+                { key: "recoveryExtended", label: "Recovery Leave", sub: "Birthing parent recovery (on top of bonding)", condition: showSplit },
+              ]}
+              warning={data.payFT === "std_only" ? "Employees in non-PFL states (TX, FL, etc.) may receive $0 during leave. Consider a minimum floor benefit." : null}
+            />
+
+            {/* STRUCTURE */}
+            <DialSection
+              title="Structure"
+              profile={profile}
+              data={data}
+              setData={setData}
+              dials={[
+                { key: "eligibilityWindow", label: "Eligibility Window", sub: "How long an employee must be employed to qualify" },
+                { key: "flexibility", label: "Leave Flexibility", sub: "Can leave be split into chunks" },
+                { key: "rampUp", label: "Return Ramp-Up Duration", sub: "Weeks of reduced schedule upon return" },
+                { key: "rampUpPay", label: "Ramp-Up Pay Rate", sub: "% of base salary paid during ramp-up weeks", condition: (data.rampUp || 0) > 0 },
+                { key: "leaveWindow", label: "Use-By Window", sub: "Leave must be used within this period of birth/placement" },
+              ]}
+            />
+
+            {/* PAY DETAILS */}
+            <DialSection
+              title="Pay Details"
+              profile={profile}
+              data={data}
+              setData={setData}
+              dials={[
+                { key: "bonusesFT", label: "Bonus Eligibility — Full-Time", sub: "Bonus treatment during leave for FT employees" },
+                { key: "bonusesPT", label: "Bonus Eligibility — Part-Time", sub: "Bonus treatment for PT employees", condition: hasPT },
+                { key: "commissions", label: "Commission Treatment", sub: "For quota-carrying employees" },
+              ]}
+            />
+          </>
+        )}
+
+        {/* 6. Edge Cases */}
+        {data.leaveStructure && (
+          <SectionCard title="Edge Cases" step="6">
+            <div>
+              <Label sub="E.g. two adoptions in one year. Cap total leave in a rolling 12-month period?">Multiple qualifying events in one year</Label>
+              <Radio
+                options={[
+                  { value: "no_cap",     label: "No cap — each event resets", sub: "Rare; very generous" },
+                  { value: "cap_1x",     label: "Cap at 1 policy cycle / year", sub: "Most common" },
+                  { value: "cap_custom", label: "Custom — contact HR" },
+                ]}
+                value={data.multipleEventCap}
+                onChange={setField("multipleEventCap")}
+                cols={3}
+              />
+            </div>
+            <div>
+              <Label>Leave for pregnancy loss, failed adoption, or infant loss?</Label>
+              <Radio
+                options={[
+                  { value: "yes", label: "Yes — paid bereavement leave", sub: "Recommended; increasingly expected and in some states required" },
+                  { value: "no",  label: "Not included" },
+                ]}
+                value={data.childLossLeave}
+                onChange={setField("childLossLeave")}
+                cols={2}
+              />
+              {data.childLossLeave === "yes" && <InfoBox>Union recommends 1–2 weeks paid for pregnancy/infant loss. IL, OR, WA, and a handful of other states now require this.</InfoBox>}
+            </div>
+            <div>
+              <Label sub="Clawback = employee repays company top-up if they don't return to work after leave.">Clawback if employee doesn't return after leave?</Label>
+              <Radio
+                options={[
+                  { value: "none",    label: "No clawback" },
+                  { value: "partial", label: "Pro-rated repayment" },
+                  { value: "full",    label: "Full repayment (X months)" },
+                ]}
+                value={data.clawback}
+                onChange={setField("clawback")}
+                cols={3}
+              />
+              {data.clawback === "full" && <Warn>Full clawbacks must be carefully drafted to avoid violating state wage laws — California especially. Union will draft with counsel review before this goes live.</Warn>}
+            </div>
+            <div>
+              <Label sub="Can employees request unpaid leave beyond their paid entitlement? Approved case-by-case.">Unpaid leave extension available?</Label>
+              <Radio
+                options={[
+                  { value: "yes", label: "Yes — case-by-case approval", sub: "Recommended; gives flexibility without open-ended commitment" },
+                  { value: "no",  label: "No — paid leave only" },
+                ]}
+                value={data.unpaidExtension}
+                onChange={setField("unpaidExtension")}
+                cols={2}
+              />
+              {data.unpaidExtension === "yes" && <InfoBox>Unpaid extensions are approved by the manager and People Operations jointly. Document the approval in writing before the extension begins.</InfoBox>}
+            </div>
+          </SectionCard>
+        )}
+
+        {data.leaveStructure && (
+          <button onClick={() => setPage("report")} style={{
+            width: "100%", padding: "16px", background: C.union, color: "#fff",
+            border: "none", borderRadius: 10, fontFamily: "inherit",
+            fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 4, marginBottom: 32,
+            boxShadow: `0 4px 14px rgba(59,91,219,0.35)`,
+          }}>
+            Generate Policy + Advisory Report →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+</body>
+</html>
